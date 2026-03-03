@@ -1441,8 +1441,8 @@ const PROVIDER_METADATA = {
   sambanova: {
     label: 'SambaNova',
     color: chalk.rgb(255, 165, 0),
-    signupUrl: 'https://sambanova.ai/developers',
-    signupHint: 'Developers portal → Create API key',
+    signupUrl: 'https://cloud.sambanova.ai/apis',
+    signupHint: 'SambaCloud portal → Create API key',
     rateLimits: 'Dev tier generous quota',
   },
   openrouter: {
@@ -1539,7 +1539,7 @@ const PROVIDER_METADATA = {
   qwen: {
     label: 'Alibaba Cloud (DashScope)',
     color: chalk.rgb(255, 140, 0),
-    signupUrl: 'https://dashscope.console.alibabacloud.com',
+    signupUrl: 'https://modelstudio.console.alibabacloud.com',
     signupHint: 'Model Studio → API Key → Create (1M free tokens, 90 days)',
     rateLimits: '1M free tokens per model (Singapore region, 90 days)',
   },
@@ -2806,6 +2806,7 @@ async function main() {
     settingsCursor: 0,            // 📖 Which provider row is selected in settings
     settingsEditMode: false,      // 📖 Whether we're in inline key editing mode
     settingsEditBuffer: '',       // 📖 Typed characters for the API key being edited
+    settingsErrorMsg: null,       // 📖 Temporary error message to display in settings
     settingsTestResults: {},      // 📖 { providerKey: 'pending'|'ok'|'fail'|null }
     settingsUpdateState: 'idle',  // 📖 'idle'|'checking'|'available'|'up-to-date'|'error'|'installing'
     settingsUpdateLatestVersion: null, // 📖 Latest npm version discovered from manual check
@@ -2902,6 +2903,9 @@ async function main() {
 
     lines.push('')
     lines.push(`  ${chalk.bold('⚙  Settings')}  ${chalk.dim('— free-coding-models v' + LOCAL_VERSION)}`)
+    if (state.settingsErrorMsg) {
+      lines.push(`  ${chalk.red.bold(state.settingsErrorMsg)}`)
+    }
     lines.push('')
     lines.push(`  ${chalk.bold('🧩 Providers')}`)
     lines.push(`  ${chalk.dim('  ' + '─'.repeat(112))}`)
@@ -3942,6 +3946,15 @@ async function main() {
           const pk = providerKeys[state.settingsCursor]
           const newKey = state.settingsEditBuffer.trim()
           if (newKey) {
+            // 📖 Validate OpenRouter keys start with "sk-or-" to detect corruption
+            if (pk === 'openrouter' && !newKey.startsWith('sk-or-')) {
+              // 📖 Don't save corrupted keys - show warning and cancel
+              state.settingsEditMode = false
+              state.settingsEditBuffer = ''
+              state.settingsErrorMsg = '⚠️  OpenRouter keys must start with "sk-or-". Key not saved.'
+              setTimeout(() => { state.settingsErrorMsg = null }, 3000)
+              return
+            }
             state.config.apiKeys[pk] = newKey
             saveConfig(state.config)
           }

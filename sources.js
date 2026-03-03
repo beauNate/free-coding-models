@@ -293,7 +293,7 @@ export const perplexity = [
 // 📖 Alibaba Cloud (DashScope) source - https://dashscope-intl.aliyuncs.com
 // 📖 OpenAI-compatible endpoint: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 // 📖 Free tier: 1M tokens per model (Singapore region only), valid for 90 days
-// 📖 Get API key: https://dashscope.console.alibabacloud.com
+// 📖 Get API key: https://modelstudio.console.alibabacloud.com
 // 📖 Env var: DASHSCOPE_API_KEY
 // 📖 Qwen3-Coder models: optimized coding models with excellent SWE-bench scores
 export const qwen = [

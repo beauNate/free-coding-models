@@ -2,6 +2,16 @@
 
 ---
 
+## 0.1.82
+
+### Fixed
+
+- **Alibaba Cloud URL** -- updated from deprecated `dashscope.console.alibabacloud.com` to active `modelstudio.console.alibabacloud.com` (rebranded to Model Studio).
+- **SambaNova URL** -- updated from broken `sambanova.ai/developers` to active `cloud.sambanova.ai/apis` (SambaCloud portal).
+- **OpenRouter key corruption** -- added validation to detect and prevent saving OpenRouter keys that don't start with `sk-or-` prefix. Shows error message and cancels save if corruption detected.
+
+---
+
 ## 0.1.81
 
 ### Added
