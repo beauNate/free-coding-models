@@ -487,15 +487,196 @@ describe('ProxyServer – log coherence', () => {
     assert.strictEqual(entries.length, 1)
     const e = entries[0]
 
-    // timestamp must be renderable as a Date
-    const d = new Date(e.timestamp)
-    assert.ok(!Number.isNaN(d.getTime()), 'timestamp must be a valid ISO date string')
+     // timestamp must be renderable as a Date
+     const d = new Date(e.timestamp)
+     assert.ok(!Number.isNaN(d.getTime()), 'timestamp must be a valid ISO date string')
+ 
+     // log-reader row must have consistent time field
+     const row = parseLogLine(JSON.stringify(e))
+     assert.ok(row !== null)
+     const rowDate = new Date(row.time)
+     assert.ok(!Number.isNaN(rowDate.getTime()), 'row.time must be a renderable ISO date string')
+     assert.ok(row.time === e.timestamp, 'row.time must match the stored timestamp')
+   })
+ })
 
-    // log-reader row must have consistent time field
-    const row = parseLogLine(JSON.stringify(e))
-    assert.ok(row !== null)
-    const rowDate = new Date(row.time)
-    assert.ok(!Number.isNaN(rowDate.getTime()), 'row.time must be a renderable ISO date string')
-    assert.ok(row.time === e.timestamp, 'row.time must match the stored timestamp')
+// ─── Suite: ProxyServer – unsupported paths return 501, not 404 ───────────────
+// These tests verify that POST /v1/completions and POST /v1/responses return
+// 501 Not Implemented (not silent 404) so callers get a clear signal.
+
+describe('ProxyServer – unsupported paths return 501', () => {
+  const cleanups = []
+
+  after(async () => {
+    for (const fn of cleanups) await fn()
+  })
+
+  it('POST /v1/completions returns 501 Not Implemented', async () => {
+    const proxy = new ProxyServer({ port: 0, accounts: [] })
+    const { port } = await proxy.start()
+    cleanups.push(() => proxy.stop())
+
+    const res = await makeRequest(port, { model: 'any', prompt: 'hello' }, 'POST', '/v1/completions')
+    assert.strictEqual(res.statusCode, 501)
+    const body = JSON.parse(res.body)
+    assert.ok(body.error, 'should include error field')
+    assert.match(body.error, /not implemented|not supported/i, 'error message should mention not implemented or not supported')
+  })
+
+  it('POST /v1/responses returns 501 Not Implemented', async () => {
+    const proxy = new ProxyServer({ port: 0, accounts: [] })
+    const { port } = await proxy.start()
+    cleanups.push(() => proxy.stop())
+
+    const res = await makeRequest(port, { model: 'any', input: 'hello' }, 'POST', '/v1/responses')
+    assert.strictEqual(res.statusCode, 501)
+    const body = JSON.parse(res.body)
+    assert.ok(body.error, 'should include error field')
+    assert.match(body.error, /not implemented|not supported/i, 'error message should mention not implemented or not supported')
+  })
+
+  it('GET /unknown-path returns 404', async () => {
+    const proxy = new ProxyServer({ port: 0, accounts: [] })
+    const { port } = await proxy.start()
+    cleanups.push(() => proxy.stop())
+
+    const res = await makeRequest(port, null, 'GET', '/unknown-path')
+    assert.strictEqual(res.statusCode, 404)
+  })
+
+  it('401 unauthorized on /v1/completions when auth is wrong', async () => {
+    const proxy = new ProxyServer({ port: 0, accounts: [], proxyApiKey: 'secret-key' })
+    const { port } = await proxy.start()
+    cleanups.push(() => proxy.stop())
+
+    // No auth header — should get 401, not 501
+    const res = await makeRequest(port, { model: 'any', prompt: 'hello' }, 'POST', '/v1/completions')
+    assert.strictEqual(res.statusCode, 401)
+  })
+})
+
+// ─── Suite: ProxyServer – upstream request timeout ────────────────────────────
+// These tests verify that the proxy does NOT hang forever when the upstream
+// is slow or unresponsive — it must time out and treat it like a network error.
+
+describe('ProxyServer – upstream request timeout', () => {
+  const cleanups = []
+
+  after(async () => {
+    for (const fn of cleanups) await fn()
+  })
+
+  it('times out and retries when upstream hangs longer than upstreamTimeoutMs', async () => {
+    // Create a mock upstream that hangs without responding for 2 seconds
+    let connectionCount = 0
+    const hangingUpstream = await new Promise(resolve => {
+      const server = http.createServer((req, res) => {
+        connectionCount++
+        // Never respond — simulate hanging upstream
+        req.on('data', () => {})
+        req.on('end', () => {
+          // Intentionally don't call res.end() — just hang
+        })
+      })
+      server.listen(0, '127.0.0.1', () => {
+        resolve({ server, port: server.address().port, url: `http://127.0.0.1:${server.address().port}` })
+      })
+    })
+    cleanups.push(() => hangingUpstream.server.close())
+
+    const goodUpstream = await new Promise(resolve => {
+      const server = http.createServer((req, res) => {
+        let body = ''
+        req.on('data', chunk => body += chunk)
+        req.on('end', () => {
+          res.writeHead(200, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }))
+        })
+      })
+      server.listen(0, '127.0.0.1', () => {
+        resolve({ server, port: server.address().port, url: `http://127.0.0.1:${server.address().port}` })
+      })
+    })
+    cleanups.push(() => goodUpstream.server.close())
+
+    const accounts = [
+      { id: 'hang-acct', providerKey: 'hang', apiKey: 'k1', modelId: 'hang-model', url: hangingUpstream.url + '/v1' },
+      { id: 'good-acct-to', providerKey: 'good', apiKey: 'k2', modelId: 'good-model', url: goodUpstream.url + '/v1' },
+    ]
+    // upstreamTimeoutMs=200ms: much shorter than the 302s real hang
+    const proxy = new ProxyServer({ port: 0, accounts, retries: 2, upstreamTimeoutMs: 200 })
+    const { port } = await proxy.start()
+    cleanups.push(() => proxy.stop())
+
+    const start = Date.now()
+    const res = await makeRequest(port, { model: 'test', messages: [{ role: 'user', content: 'hi' }] })
+    const elapsed = Date.now() - start
+
+    // Must complete in much less than 302 seconds (within 2000ms for this test)
+    assert.ok(elapsed < 2000, `Request took ${elapsed}ms, expected < 2000ms (timeout should have fired)`)
+    // Should have fallen over to the good upstream
+    assert.strictEqual(res.statusCode, 200)
+  })
+
+  it('returns 503 when all accounts time out and no fallback', async () => {
+    const hangingUpstream = await new Promise(resolve => {
+      const server = http.createServer((req, res) => {
+        req.on('data', () => {})
+        req.on('end', () => { /* hang */ })
+      })
+      server.listen(0, '127.0.0.1', () => {
+        resolve({ server, port: server.address().port, url: `http://127.0.0.1:${server.address().port}` })
+      })
+    })
+    cleanups.push(() => hangingUpstream.server.close())
+
+    const accounts = [
+      { id: 'hang-only', providerKey: 'hang', apiKey: 'k1', modelId: 'hang-model', url: hangingUpstream.url + '/v1' },
+    ]
+    const proxy = new ProxyServer({ port: 0, accounts, retries: 1, upstreamTimeoutMs: 150 })
+    const { port } = await proxy.start()
+    cleanups.push(() => proxy.stop())
+
+    const start = Date.now()
+    const res = await makeRequest(port, { model: 'test', messages: [{ role: 'user', content: 'hi' }] })
+    const elapsed = Date.now() - start
+
+    assert.ok(elapsed < 2000, `Request took ${elapsed}ms, expected < 2000ms`)
+    assert.strictEqual(res.statusCode, 503)
+  })
+
+  it('logs timeout attempts in the request log', async () => {
+    const logCtx = makeTempLogDir('timeout-log')
+    cleanups.push(logCtx.cleanup)
+
+    const hangingUpstream = await new Promise(resolve => {
+      const server = http.createServer((req, res) => {
+        req.on('data', () => {})
+        req.on('end', () => { /* hang */ })
+      })
+      server.listen(0, '127.0.0.1', () => {
+        resolve({ server, port: server.address().port, url: `http://127.0.0.1:${server.address().port}` })
+      })
+    })
+    cleanups.push(() => hangingUpstream.server.close())
+
+    const accounts = [
+      { id: 'hang-log-acct', providerKey: 'hang-prov', apiKey: 'k1', modelId: 'hang-model', url: hangingUpstream.url + '/v1' },
+    ]
+    const proxy = new ProxyServer({
+      port: 0, accounts, retries: 1, upstreamTimeoutMs: 150,
+      tokenStatsOpts: { dataDir: logCtx.dir },
+    })
+    const { port } = await proxy.start()
+    cleanups.push(() => proxy.stop())
+
+    await makeRequest(port, { model: 'test', messages: [{ role: 'user', content: 'hi' }] })
+
+    const entries = logCtx.readLog()
+    assert.ok(entries.length >= 1, 'timeout should produce a log entry')
+    const timeoutEntry = entries[0]
+    assert.strictEqual(timeoutEntry.success, false, 'timed-out request must be logged as failed')
+    assert.strictEqual(timeoutEntry.statusCode, 0, 'timeout entry must use statusCode=0 (network error)')
+    assert.strictEqual(timeoutEntry.providerKey, 'hang-prov')
   })
 })

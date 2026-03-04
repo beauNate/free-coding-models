@@ -2,6 +2,19 @@
 
 ---
 
+## 0.1.84
+
+### Fixed
+
+- **Proxy upstream timeout** — `ProxyServer` now enforces a 120-second timeout on every upstream HTTP request (`upstreamTimeoutMs`, default 120 000 ms). Previously the proxy would hang for the full upstream timeout (up to 302 s for nvidia NIM 504s), making OpenCode appear to receive nothing. The timed-out attempt is now treated as a network error and retried against the next available account.
+- **501 for unsupported OpenAI paths** — `POST /v1/completions` and `POST /v1/responses` now return `501 Not Implemented` (with a clear error message pointing to `/v1/chat/completions`) instead of a silent `404 Not Found`.
+
+### Added
+
+- **7 new tests** — upstream-timeout suite (3 tests) and unsupported-paths suite (4 tests) in `test/proxy-server.test.js`; all 220 tests pass.
+
+---
+
 ## 0.1.83
 
 > Integrates upstream v0.1.82 (URL fixes, OpenRouter key validation) and extends the fork with usage observability, quota polling, and proxy log hardening.
