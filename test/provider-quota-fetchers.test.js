@@ -183,6 +183,29 @@ describe('createProviderQuotaFetcher – TTL cache', () => {
 
     assert.strictEqual(callCount, 2, 'different keys should fetch independently')
   })
+
+  it('keys with same last 8 chars but different content are cached separately (no collision)', async () => {
+    // Bug: apiKey.slice(-8) causes collision for keys sharing the same suffix.
+    // e.g. 'provider-A-SHARED12' and 'provider-B-SHARED12' → same cache key
+    // Fix: use a hash of the full key for collision-resistant keying.
+    let callCount = 0
+    const mockFetch = async () => {
+      callCount++
+      return {
+        ok: true,
+        json: async () => ({ data: { limit_remaining: callCount * 10, limit: 100 } }),
+      }
+    }
+
+    const fetcher = createProviderQuotaFetcher({ fetchFn: mockFetch, cacheTtlMs: 60_000, errorBackoffMs: 15_000 })
+
+    // Two keys with identical last 8 chars but different full content
+    const r1 = await fetcher('openrouter', 'account-A-SHARED12')
+    const r2 = await fetcher('openrouter', 'account-B-SHARED12')
+
+    assert.strictEqual(callCount, 2, 'keys sharing same suffix must be cached independently (no collision)')
+    assert.notStrictEqual(r1, r2, 'different keys must not share cache entries')
+  })
 })
 
 describe('createProviderQuotaFetcher – error backoff', () => {

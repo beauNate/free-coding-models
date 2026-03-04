@@ -518,6 +518,49 @@ describe('AccountManager — temporary exhaustion (unknown telemetry)', () => {
     const h = am.getHealth('k-acct-0')
     assert.strictEqual(h.disabled, true, '403 should permanently disable account')
   })
+
+  it('MODEL_NOT_FOUND (skipAccount=true, non-429) does NOT permanently disable account', () => {
+    // Only AUTH_ERROR should permanently disable. MODEL_NOT_FOUND has skipAccount=true
+    // but is NOT an auth failure — the account may work for other models.
+    const am = new AccountManager(makeUnknownAccounts(2))
+    am.recordFailure('u-acct-0', {
+      type: 'MODEL_NOT_FOUND', shouldRetry: true, skipAccount: true, retryAfterSec: null,
+    }, { providerKey: 'huggingface' })
+    const h = am.getHealth('u-acct-0')
+    assert.strictEqual(h.disabled, false, 'MODEL_NOT_FOUND must NOT permanently disable account')
+  })
+
+  it('SERVER_ERROR (skipAccount=false) does NOT permanently disable account', () => {
+    const am = new AccountManager(makeUnknownAccounts(1))
+    am.recordFailure('u-acct-0', {
+      type: 'SERVER_ERROR', shouldRetry: true, skipAccount: false, retryAfterSec: null,
+    }, { providerKey: 'huggingface' })
+    const h = am.getHealth('u-acct-0')
+    assert.strictEqual(h.disabled, false, 'SERVER_ERROR must not permanently disable account')
+  })
+
+  it('probeInFlight is cleared when probe fails with non-429 error (500/network)', () => {
+    // Scenario: account entered cooldown, cooldown expired, probe was sent,
+    // but the probe got a 500 (not 429). probeInFlight must be cleared so
+    // the account is not permanently blocked.
+    const am = new AccountManager(makeUnknownAccounts(2))
+    const err429 = { type: 'RATE_LIMITED', shouldRetry: true, skipAccount: false, retryAfterSec: null, rateLimitConfidence: 'generic_rate_limit' }
+    const ctx = { providerKey: 'huggingface' }
+    // Exhaust the account into cooldown
+    for (let i = 0; i < 3; i++) am.recordFailure('u-acct-0', err429, ctx)
+    // Fast-forward cooldown
+    const h = am._healthMap.get('u-acct-0')
+    h.rateLimitState.cooldownUntilMs = Date.now() - 1
+    // Arm probe
+    am.selectAccount({})
+    assert.strictEqual(h.rateLimitState.probeInFlight, true, 'probe should be armed')
+    // Probe fails with a 500 (non-429)
+    am.recordFailure('u-acct-0', {
+      type: 'SERVER_ERROR', shouldRetry: true, skipAccount: false, retryAfterSec: null,
+    }, { providerKey: 'huggingface' })
+    // probeInFlight must be cleared so account can be re-probed after next cooldown
+    assert.strictEqual(h.rateLimitState.probeInFlight, false, 'probeInFlight must be cleared after non-429 probe failure')
+  })
 })
 
 describe('quota-capabilities', () => {

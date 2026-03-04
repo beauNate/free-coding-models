@@ -81,6 +81,24 @@ describe('compressContext', () => {
     assert.strictEqual(result[result.length - 1].content, 'latest question', 'Latest message preserved')
   })
 
+  it('L3: counts string-type blocks in array content for accurate char budgeting', () => {
+    // messageCharCount must handle array content where blocks are plain strings
+    // (not just {type:'text'} objects). Without the fix, string blocks count as
+    // 0 chars, so L3 never drops messages that should be dropped.
+    const bigStr = 'x'.repeat(60000)
+    const msgs = [
+      { role: 'system', content: 'system prompt' },
+      // Array-of-strings content (some providers / openai legacy format)
+      { role: 'user', content: [bigStr, bigStr] },   // 120000 chars as string blocks
+      { role: 'user', content: 'latest question' },
+    ]
+    const result = compressContext(msgs, { level: 3, maxTotalChars: 50000 })
+    // The large user message (120000 chars in string blocks) should be dropped
+    const hasLargeMsg = result.some(m => Array.isArray(m.content) && m.content.includes(bigStr))
+    assert.strictEqual(hasLargeMsg, false, 'Large string-block message should be dropped under budget')
+    assert.strictEqual(result[result.length - 1].content, 'latest question', 'Latest message must be preserved')
+  })
+
   it('does not mutate original messages', () => {
     const msgs = [{ role: 'tool', content: 'x'.repeat(5000), tool_call_id: 'tc1' }]
     const original = msgs[0].content.length
