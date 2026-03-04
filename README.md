@@ -14,12 +14,14 @@
   <a href="https://github.com/erwinh22"><img src="https://avatars.githubusercontent.com/u/6641858?v=4&s=60" width="60" height="60" style="border-radius:50%" alt="erwinh22"></a>
   <a href="https://github.com/whit3rabbit"><img src="https://avatars.githubusercontent.com/u/12357518?v=4&s=60" width="60" height="60" style="border-radius:50%" alt="whit3rabbit"></a>
   <a href="https://github.com/skylaweber"><img src="https://avatars.githubusercontent.com/u/172871734?v=4&s=60" width="60" height="60" style="border-radius:50%" alt="skylaweber"></a>
+  <a href="https://github.com/PhucTruong-ctrl"><img src="https://github.com/PhucTruong-ctrl.png?s=60" width="60" height="60" style="border-radius:50%" alt="PhucTruong-ctrl"></a>
   <br>
   <sub>
     <a href="https://github.com/vava-nessa">vava-nessa</a> &middot;
     <a href="https://github.com/erwinh22">erwinh22</a> &middot;
     <a href="https://github.com/whit3rabbit">whit3rabbit</a> &middot;
-    <a href="https://github.com/skylaweber">skylaweber</a>
+    <a href="https://github.com/skylaweber">skylaweber</a> &middot;
+    <a href="https://github.com/PhucTruong-ctrl">PhucTruong-ctrl</a>
   </sub>
 </p>
 
@@ -39,7 +41,7 @@
 
 <p align="center">
   <strong>Find the fastest coding LLM models in seconds</strong><br>
-  <sub>Ping free coding models from 19 providers in real-time — pick the best one for OpenCode, OpenClaw, or any AI coding assistant</sub>
+  <sub>Ping free coding models from 20 providers in real-time — pick the best one for OpenCode, OpenClaw, or any AI coding assistant</sub>
 </p>
 
 <p align="center">
@@ -64,27 +66,31 @@
 ## ✨ Features
 
 - **🎯 Coding-focused** — Only LLM models optimized for code generation, not chat or vision
-- **🌐 Multi-provider** — Models from NVIDIA NIM, Groq, Cerebras, SambaNova, OpenRouter, Hugging Face Inference, Replicate, DeepInfra, Fireworks AI, Codestral, Hyperbolic, Scaleway, Google AI, SiliconFlow, Together AI, Cloudflare Workers AI, Perplexity API, Alibaba Cloud (DashScope), and ZAI
+- **🌐 Multi-provider** — Models from NVIDIA NIM, Groq, Cerebras, SambaNova, OpenRouter, Hugging Face Inference, Replicate, DeepInfra, Fireworks AI, Codestral, Hyperbolic, Scaleway, Google AI, SiliconFlow, Together AI, Cloudflare Workers AI, Perplexity API, Alibaba Cloud (DashScope), ZAI, and iFlow
 - **⚙️ Settings screen** — Press `P` to manage provider API keys, enable/disable providers, test keys live, and manually check/install updates
+- **🔀 Multi-account Proxy (`fcm-proxy`)** — Automatically starts a local reverse proxy that groups all your accounts into a single provider in OpenCode; supports multi-account rotation and auto-detects usage limits to swap between providers.
 - **🚀 Parallel pings** — All models tested simultaneously via native `fetch`
 - **📊 Real-time animation** — Watch latency appear live in alternate screen buffer
 - **🏆 Smart ranking** — Top 3 fastest models highlighted with medals 🥇🥈🥉
 - **⏱ Continuous monitoring** — Pings all models every 3 seconds forever, never stops
 - **📈 Rolling averages** — Avg calculated from ALL successful pings since start
 - **📊 Uptime tracking** — Percentage of successful pings shown in real-time
-- **📐 Stability score** — Composite 0–100 score measuring consistency (p95, jitter, spikes, uptime) — a model with 400ms avg and stable responses beats a 250ms avg model that randomly spikes to 6s
+- **📐 Stability score** — Composite 0–100 score measuring consistency (p95, jitter, spikes, uptime)
+- **📊 Usage tracking** — Monitor remaining quota percentage for each model directly in the TUI; persists across sessions via `token-stats.json`.
+- **📜 Live Log Viewer** — Press `X` to view real-time activity and error logs in a focused TUI overlay.
+- **🛠 MODEL_NOT_FOUND Rotation** — If a specific provider returns a 404 for a model, the TUI intelligently rotates through other available providers for the same model.
 - **🔄 Auto-retry** — Timeout models keep getting retried, nothing is ever "given up on"
 - **🎮 Interactive selection** — Navigate with arrow keys directly in the table, press Enter to act
 - **🔀 Startup mode menu** — Choose between OpenCode and OpenClaw before the TUI launches
 - **💻 OpenCode integration** — Auto-detects NIM setup, sets model as default, launches OpenCode
 - **🦞 OpenClaw integration** — Sets selected model as default provider in `~/.openclaw/openclaw.json`
-- **📝 Feature Request (J key)** — Send anonymous feedback directly to the project team via a full-screen overlay with multi-line input (includes anonymous OS/terminal metadata in message footer only)
-- **🐛 Bug Report (I key)** — Send anonymous bug reports directly to the project team via a full-screen overlay with multi-line input (includes anonymous OS/terminal metadata in message footer only)
+- **📝 Feature Request (J key)** — Send anonymous feedback directly to the project team
+- **🐛 Bug Report (I key)** — Send anonymous bug reports directly to the project team
  - **🎨 Clean output** — Zero scrollback pollution, interface stays open until Ctrl+C
  - **📶 Status indicators** — UP ✅ · No Key 🔑 · Timeout ⏳ · Overloaded 🔥 · Not Found 🚫
- - **🔍 Keyless latency** — Models are pinged even without an API key — a `🔑 NO KEY` status confirms the server is reachable with real latency shown, so you can compare providers before committing to a key
- - **🏷 Tier filtering** — Filter models by tier letter (S, A, B, C) with `--tier` flag or dynamically with `T` key
- - **⭐ Persistent favorites** — Press `F` on a selected row to pin/unpin it; favorites stay at top with a dark orange background and a star before the model name
+ - **🔍 Keyless latency** — Models are pinged even without an API key
+ - **🏷 Tier filtering** — Filter models by tier letter (S, A, B, C)
+ - **⭐ Persistent favorites** — Press `F` on a selected row to pin/unpin it
 
 ---
 
@@ -454,16 +460,17 @@ The main table displays one row per model with the following columns:
 |--------|----------|-------------|
 | **Rank** | `R` | Position based on current sort order (medals for top 3: 🥇🥈🥉) |
 | **Tier** | `Y` | SWE-bench tier (S+, S, A+, A, A-, B+, B, C) |
-| **SWE%** | `S` | SWE-bench Verified score — the industry-standard benchmark for real GitHub issue resolution |
-| **CTX** | `C` | Context window size in thousands of tokens (e.g. `128k`) |
+| **SWE%** | `S` | SWE-bench Verified score — industry-standard for coding |
+| **CTX** | `C` | Context window size (e.g. `128k`) |
 | **Model** | `M` | Model display name (favorites show ⭐ prefix) |
-| **Origin** | `N` | Provider name (NIM, Groq, Cerebras, etc.) — press `N` to cycle origin filter |
+| **Origin** | `O` | Provider name (NIM, Groq, etc.) — press `N` to cycle origin filter |
 | **Latest Ping** | `L` | Most recent round-trip latency in milliseconds |
 | **Avg Ping** | `A` | Rolling average of ALL successful pings since launch |
 | **Health** | `H` | Current status: UP ✅, NO KEY 🔑, Timeout ⏳, Overloaded 🔥, Not Found 🚫 |
-| **Verdict** | `V` | Health verdict based on avg latency + stability analysis (see below) |
+| **Verdict** | `V` | Health verdict based on avg latency + stability analysis |
 | **Stability** | `B` | Composite 0–100 consistency score (see [Stability Score](#-stability-score)) |
-| **Up%** | `U` | Uptime — percentage of successful pings out of total attempts |
+| **Up%** | `U` | Uptime — percentage of successful pings |
+| **Usage** | `G` | Quota remaining — percentage of available tokens/requests left |
 
 ### Verdict values
 
@@ -507,28 +514,33 @@ Stability = 0.30 × p95_score
 | **Spike rate** | 20% | Fraction of pings above 3000ms | `100 × (1 - spikes / total_pings)` |
 | **Reliability** | 20% | Uptime — fraction of successful HTTP 200 pings | Direct uptime percentage (0–100) |
 
-### Color coding
+---
 
-| Score | Color | Interpretation |
-|-------|-------|----------------|
-| **80–100** | Green | Rock-solid — very consistent, safe to rely on |
-| **60–79** | Cyan | Good — occasional variance but generally stable |
-| **40–59** | Yellow | Shaky — noticeable inconsistency |
-| **< 40** | Red | Unreliable — frequent spikes or failures |
-| **—** | Dim | No data yet (no successful pings) |
+## 🔀 Multi-Account Proxy (`fcm-proxy`)
 
-### Example
+`free-coding-models` includes a built-in reverse proxy that can group all your provider accounts into a single virtual provider.
 
-Two models with similar average latency, very different real-world experience:
+### Why use the proxy?
+- **Unified Provider**: Instead of managing 20+ providers in your coding assistant, just use `fcm-proxy`.
+- **Automatic Rotation**: When one account hits its rate limit (429), the proxy automatically swaps to the next available account for that model.
+- **Quota Awareness**: The proxy tracks usage in real-time and prioritizes accounts with the most remaining bandwidth.
+- **Transparent Bridging**: Automatically handles non-standard API paths (like ZAI's `/api/coding/paas/v4/`) and converts them to standard OpenAI-compatible `/v1/` calls.
 
-```
-Model A:  avg 250ms,  p95 6000ms,  jitter 1800ms  →  Stability ~30  (red)
-Model B:  avg 400ms,  p95  650ms,  jitter  120ms  →  Stability ~85  (green)
-```
+### How to use it
+The proxy starts automatically when you select a model in OpenCode mode if you have `fcm-proxy` configured. You can see its status (port and active account count) in the TUI footer.
 
-Model B is the better choice despite its higher average — it won't randomly stall your coding workflow.
+---
 
-> 💡 **Tip:** Sort by Stability (`B` key) after a few minutes of monitoring to find the models that deliver the most predictable performance.
+## 📜 Log Viewer
+
+Press **`X`** at any time to open the dedicated Log Viewer overlay.
+
+- **Real-time Activity**: See every ping, rotation, and proxy request as it happens.
+- **Error Diagnostics**: View detailed error messages from providers when a ping fails.
+- **Quota Tracking**: Monitor how the tool discovers and updates your remaining quota.
+- **Auto-Pruning**: The log history is automatically managed to stay concise and relevant.
+
+Use **↑↓** to scroll and **Esc** or **X** to return to the main table.
 
 ---
 
@@ -824,19 +836,20 @@ This script:
 **Keyboard shortcuts (main TUI):**
 - **↑↓** — Navigate models
 - **Enter** — Select model (launches OpenCode or sets OpenClaw default, depending on mode)
-- **R/Y/O/M/L/A/S/N/H/V/B/U** — Sort by Rank/Tier/Origin/Model/LatestPing/Avg/SWE/Ctx/Health/Verdict/Stability/Uptime
+- **R/Y/S/C/M/O/L/A/H/V/B/U/G** — Sort by Rank/Tier/SWE/Ctx/Model/Origin/Latest/Avg/Health/Verdict/Stability/Up%/Usage
 - **F** — Toggle favorite on selected model (⭐ in Model column, pinned at top)
 - **T** — Cycle tier filter (All → S+ → S → A+ → A → A- → B+ → B → C → All)
+- **N** — Cycle origin filter (All → NIM → Groq → ...)
 - **Z** — Cycle mode (OpenCode CLI → OpenCode Desktop → OpenClaw)
- - **P** — Open Settings (manage API keys, provider toggles, manual update, profiles)
+- **X** — **Toggle Log Viewer** (view recent activity and error logs)
+- **P** — Open Settings (manage API keys, toggles, updates, profiles)
 - **Shift+P** — Cycle through saved profiles (switches live TUI settings)
 - **Shift+S** — Save current TUI settings as a named profile (inline prompt)
 - **Q** — Open Smart Recommend overlay (find the best model for your task)
-- **E** — Elevate tier filter (show higher tiers)
-- **D** — Descend tier filter (show lower tiers)
-- **W** — Decrease ping interval (faster pings)
-- **X** — Increase ping interval (slower pings)
-- **K** / **Esc** — Show/hide help overlay
+- **E / D** — Elevate / Descend tier filter
+- **W / =** — Decrease / Increase ping interval
+- **J / I** — Request feature / Report bug
+- **K / Esc** — Show help overlay / Close overlay
 - **Ctrl+C** — Exit
 
 Pressing **K** now shows a full in-app reference: main hotkeys, settings hotkeys, and CLI flags with usage examples.

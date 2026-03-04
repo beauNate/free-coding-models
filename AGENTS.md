@@ -76,6 +76,7 @@ When releasing a new version, follow this exact process:
 When new PRs are merged, add the contributor's GitHub handle to the footer in `bin/free-coding-models.js` (the `Contributors:` line near line 775), separated by spaces. Also update this list:
 
 - @whit3rabbit
+- @PhucTruong-ctrl
 
 ## Changelog (MANDATORY)
 
