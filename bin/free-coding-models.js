@@ -21,9 +21,10 @@
  *   - JSON config stored in ~/.free-coding-models.json (auto-migrates from old plain-text)
  *   - Multi-provider support via sources.js (NIM/Groq/Cerebras/OpenRouter/Hugging Face/Replicate/DeepInfra/... — extensible)
  *   - Settings screen (P key) to manage API keys, provider toggles, and manual updates
+ *   - Install Endpoints flow (Y key) to push provider catalogs into OpenCode, OpenClaw, Crush, and Goose
  *   - Favorites system: toggle with F, pin rows to top, persist between sessions
  *   - Uptime percentage tracking (successful pings / total pings)
- *   - Sortable columns (R/Y/O/M/L/A/S/N/H/V/B/U keys)
+ *   - Sortable columns (R/O/M/L/A/S/C/H/V/B/U/G keys)
  *   - Tier filtering via T key (cycles S+→S→A+→A→A-→B+→B→C→All)
  *
  *   → Functions:
@@ -118,6 +119,7 @@ import { createOverlayRenderers } from '../src/overlays.js'
 import { createKeyHandler } from '../src/key-handler.js'
 import { getToolModeOrder } from '../src/tool-metadata.js'
 import { startExternalTool } from '../src/tool-launchers.js'
+import { getConfiguredInstallableProviders, installProviderEndpoints, refreshInstalledEndpoints, getInstallTargetModes, getProviderCatalogModels } from '../src/endpoint-installer.js'
 
 // 📖 mergedModels: cross-provider grouped model list (one entry per label, N providers each)
 // 📖 mergedModelByLabel: fast lookup map from display label → merged model entry
@@ -310,6 +312,10 @@ async function main() {
     console.log(chalk.yellow('  OpenRouter: using cached model list (live fetch failed)'))
   }
 
+  // 📖 Re-sync tracked external-tool catalogs after the live provider catalog has settled.
+  // 📖 This keeps prior `Y` installs aligned with the current FCM model list.
+  refreshInstalledEndpoints(config)
+
   // 📖 Build results from MODELS — only include enabled providers
   // 📖 Each result gets providerKey so ping() knows which URL + API key to use
 
@@ -404,6 +410,17 @@ async function main() {
     helpVisible: false,           // 📖 Whether the help overlay (K key) is active
     settingsScrollOffset: 0,      // 📖 Vertical scroll offset for Settings overlay viewport
     helpScrollOffset: 0,          // 📖 Vertical scroll offset for Help overlay viewport
+    // 📖 Install Endpoints overlay state (Y key opens it)
+    installEndpointsOpen: false,  // 📖 Whether the install-endpoints overlay is active
+    installEndpointsPhase: 'providers', // 📖 providers | tools | scope | models | result
+    installEndpointsCursor: 0,    // 📖 Selected row within the current install phase
+    installEndpointsScrollOffset: 0, // 📖 Vertical scroll offset for the install overlay viewport
+    installEndpointsProviderKey: null, // 📖 Selected provider for endpoint installation
+    installEndpointsToolMode: null, // 📖 Selected target tool mode
+    installEndpointsScope: null,  // 📖 all | selected
+    installEndpointsSelectedModelIds: new Set(), // 📖 Multi-select buffer for the selected-models phase
+    installEndpointsErrorMsg: null, // 📖 Temporary validation/error message inside the install flow
+    installEndpointsResult: null, // 📖 Final install result shown in the result phase
     // 📖 Smart Recommend overlay state (Q key opens it)
     recommendOpen: false,         // 📖 Whether the recommend overlay is active
     recommendPhase: 'questionnaire', // 📖 'questionnaire'|'analyzing'|'results' — current phase
@@ -595,7 +612,10 @@ async function main() {
     toFavoriteKey,
     getTopRecommendations,
     adjustScrollOffset,
-    getPingModel: () => pingModel
+    getPingModel: () => pingModel,
+    getConfiguredInstallableProviders,
+    getInstallTargetModes,
+    getProviderCatalogModels,
   })
 
   onKeyPress = createKeyHandler({
@@ -616,6 +636,10 @@ async function main() {
     saveAsProfile,
     setActiveProfile,
     saveConfig,
+    getConfiguredInstallableProviders,
+    getInstallTargetModes,
+    getProviderCatalogModels,
+    installProviderEndpoints,
     syncFavoriteFlags,
     toggleFavoriteModel,
     sortResultsWithPinnedFavorites,
@@ -689,12 +713,14 @@ async function main() {
     refreshAutoPingMode()
     state.frame++
     // 📖 Cache visible+sorted models each frame so Enter handler always matches the display
-    if (!state.settingsOpen && !state.recommendOpen && !state.featureRequestOpen && !state.bugReportOpen) {
+    if (!state.settingsOpen && !state.installEndpointsOpen && !state.recommendOpen && !state.featureRequestOpen && !state.bugReportOpen) {
       const visible = state.results.filter(r => !r.hidden)
       state.visibleSorted = sortResultsWithPinnedFavorites(visible, state.sortColumn, state.sortDirection)
     }
     const content = state.settingsOpen
       ? overlays.renderSettings()
+      : state.installEndpointsOpen
+        ? overlays.renderInstallEndpoints()
       : state.recommendOpen
         ? overlays.renderRecommend()
         : state.featureRequestOpen

@@ -4,7 +4,7 @@
  *
  * @details
  *   This module encapsulates the full onKeyPress switch used by the TUI,
- *   including settings navigation, overlays, profile management, and
+ *   including settings navigation, install-endpoint flow, overlays, profile management, and
  *   OpenCode/OpenClaw launch actions. It also keeps the live key bindings
  *   aligned with the highlighted letters shown in the table headers.
  *
@@ -115,6 +115,10 @@ export function createKeyHandler(ctx) {
     saveAsProfile,
     setActiveProfile,
     saveConfig,
+    getConfiguredInstallableProviders,
+    getInstallTargetModes,
+    getProviderCatalogModels,
+    installProviderEndpoints,
     syncFavoriteFlags,
     toggleFavoriteModel,
     sortResultsWithPinnedFavorites,
@@ -242,6 +246,48 @@ export function createKeyHandler(ctx) {
     runUpdate(latestVersion)
   }
 
+  function resetInstallEndpointsOverlay() {
+    state.installEndpointsOpen = false
+    state.installEndpointsPhase = 'providers'
+    state.installEndpointsCursor = 0
+    state.installEndpointsScrollOffset = 0
+    state.installEndpointsProviderKey = null
+    state.installEndpointsToolMode = null
+    state.installEndpointsScope = null
+    state.installEndpointsSelectedModelIds = new Set()
+    state.installEndpointsErrorMsg = null
+    state.installEndpointsResult = null
+  }
+
+  async function runInstallEndpointsFlow() {
+    const selectedModelIds = [...state.installEndpointsSelectedModelIds]
+    const result = installProviderEndpoints(
+      state.config,
+      state.installEndpointsProviderKey,
+      state.installEndpointsToolMode,
+      {
+        scope: state.installEndpointsScope,
+        modelIds: selectedModelIds,
+      }
+    )
+
+    state.installEndpointsResult = {
+      type: 'success',
+      title: `${result.modelCount} models installed into ${result.toolLabel}`,
+      lines: [
+        chalk.bold(`Provider:`) + ` ${result.providerLabel}`,
+        chalk.bold(`Scope:`) + ` ${result.scope === 'selected' ? 'Selected models' : 'All current models'}`,
+        chalk.bold(`Managed Id:`) + ` ${result.providerId}`,
+        chalk.bold(`Config:`) + ` ${result.path}`,
+        ...(result.extraPath ? [chalk.bold(`Secrets:`) + ` ${result.extraPath}`] : []),
+      ],
+    }
+    state.installEndpointsPhase = 'result'
+    state.installEndpointsCursor = 0
+    state.installEndpointsScrollOffset = 0
+    state.installEndpointsErrorMsg = null
+  }
+
   return async (str, key) => {
     if (!key) return
     noteUserActivity()
@@ -284,6 +330,186 @@ export function createKeyHandler(ctx) {
       if (str && str.length === 1 && !key.ctrl && !key.meta) {
         state.profileSaveBuffer += str
       }
+      return
+    }
+
+    // 📖 Install Endpoints overlay: provider → tool → scope → optional model subset.
+    if (state.installEndpointsOpen) {
+      if (key.ctrl && key.name === 'c') { exit(0); return }
+
+      const providerChoices = getConfiguredInstallableProviders(state.config)
+      const toolChoices = getInstallTargetModes()
+      const modelChoices = state.installEndpointsProviderKey
+        ? getProviderCatalogModels(state.installEndpointsProviderKey)
+        : []
+      const pageStep = Math.max(1, (state.terminalRows || 1) - 4)
+
+      const maxIndexByPhase = () => {
+        if (state.installEndpointsPhase === 'providers') return Math.max(0, providerChoices.length - 1)
+        if (state.installEndpointsPhase === 'tools') return Math.max(0, toolChoices.length - 1)
+        if (state.installEndpointsPhase === 'scope') return 1
+        if (state.installEndpointsPhase === 'models') return Math.max(0, modelChoices.length - 1)
+        return 0
+      }
+
+      if (key.name === 'up') {
+        state.installEndpointsCursor = Math.max(0, state.installEndpointsCursor - 1)
+        return
+      }
+      if (key.name === 'down') {
+        state.installEndpointsCursor = Math.min(maxIndexByPhase(), state.installEndpointsCursor + 1)
+        return
+      }
+      if (key.name === 'pageup') {
+        state.installEndpointsCursor = Math.max(0, state.installEndpointsCursor - pageStep)
+        return
+      }
+      if (key.name === 'pagedown') {
+        state.installEndpointsCursor = Math.min(maxIndexByPhase(), state.installEndpointsCursor + pageStep)
+        return
+      }
+      if (key.name === 'home') {
+        state.installEndpointsCursor = 0
+        return
+      }
+      if (key.name === 'end') {
+        state.installEndpointsCursor = maxIndexByPhase()
+        return
+      }
+
+      if (key.name === 'escape') {
+        state.installEndpointsErrorMsg = null
+        if (state.installEndpointsPhase === 'providers' || state.installEndpointsPhase === 'result') {
+          resetInstallEndpointsOverlay()
+          return
+        }
+        if (state.installEndpointsPhase === 'tools') {
+          state.installEndpointsPhase = 'providers'
+          state.installEndpointsCursor = 0
+          state.installEndpointsScrollOffset = 0
+          return
+        }
+        if (state.installEndpointsPhase === 'scope') {
+          state.installEndpointsPhase = 'tools'
+          state.installEndpointsCursor = 0
+          state.installEndpointsScrollOffset = 0
+          return
+        }
+        if (state.installEndpointsPhase === 'models') {
+          state.installEndpointsPhase = 'scope'
+          state.installEndpointsCursor = state.installEndpointsScope === 'selected' ? 1 : 0
+          state.installEndpointsScrollOffset = 0
+          return
+        }
+      }
+
+      if (state.installEndpointsPhase === 'providers') {
+        if (key.name === 'return') {
+          const selectedProvider = providerChoices[state.installEndpointsCursor]
+          if (!selectedProvider) {
+            state.installEndpointsErrorMsg = '⚠ No installable configured provider is available yet.'
+            return
+          }
+          state.installEndpointsProviderKey = selectedProvider.providerKey
+          state.installEndpointsToolMode = null
+          state.installEndpointsScope = null
+          state.installEndpointsSelectedModelIds = new Set()
+          state.installEndpointsPhase = 'tools'
+          state.installEndpointsCursor = 0
+          state.installEndpointsScrollOffset = 0
+          state.installEndpointsErrorMsg = null
+        }
+        return
+      }
+
+      if (state.installEndpointsPhase === 'tools') {
+        if (key.name === 'return') {
+          const selectedToolMode = toolChoices[state.installEndpointsCursor]
+          if (!selectedToolMode) return
+          state.installEndpointsToolMode = selectedToolMode
+          state.installEndpointsPhase = 'scope'
+          state.installEndpointsCursor = 0
+          state.installEndpointsScrollOffset = 0
+          state.installEndpointsErrorMsg = null
+        }
+        return
+      }
+
+      if (state.installEndpointsPhase === 'scope') {
+        if (key.name === 'return') {
+          state.installEndpointsScope = state.installEndpointsCursor === 1 ? 'selected' : 'all'
+          state.installEndpointsScrollOffset = 0
+          state.installEndpointsErrorMsg = null
+          if (state.installEndpointsScope === 'all') {
+            try {
+              await runInstallEndpointsFlow()
+            } catch (error) {
+              state.installEndpointsResult = {
+                type: 'error',
+                title: 'Install failed',
+                lines: [error instanceof Error ? error.message : String(error)],
+              }
+              state.installEndpointsPhase = 'result'
+            }
+            return
+          }
+
+          state.installEndpointsSelectedModelIds = new Set()
+          state.installEndpointsPhase = 'models'
+          state.installEndpointsCursor = 0
+        }
+        return
+      }
+
+      if (state.installEndpointsPhase === 'models') {
+        if (key.name === 'a') {
+          if (state.installEndpointsSelectedModelIds.size === modelChoices.length) {
+            state.installEndpointsSelectedModelIds = new Set()
+          } else {
+            state.installEndpointsSelectedModelIds = new Set(modelChoices.map((model) => model.modelId))
+          }
+          state.installEndpointsErrorMsg = null
+          return
+        }
+
+        if (key.name === 'space') {
+          const selectedModel = modelChoices[state.installEndpointsCursor]
+          if (!selectedModel) return
+          const next = new Set(state.installEndpointsSelectedModelIds)
+          if (next.has(selectedModel.modelId)) next.delete(selectedModel.modelId)
+          else next.add(selectedModel.modelId)
+          state.installEndpointsSelectedModelIds = next
+          state.installEndpointsErrorMsg = null
+          return
+        }
+
+        if (key.name === 'return') {
+          if (state.installEndpointsSelectedModelIds.size === 0) {
+            state.installEndpointsErrorMsg = '⚠ Select at least one model before installing.'
+            return
+          }
+
+          try {
+            await runInstallEndpointsFlow()
+          } catch (error) {
+            state.installEndpointsResult = {
+              type: 'error',
+              title: 'Install failed',
+              lines: [error instanceof Error ? error.message : String(error)],
+            }
+            state.installEndpointsPhase = 'result'
+          }
+        }
+        return
+      }
+
+      if (state.installEndpointsPhase === 'result') {
+        if (key.name === 'return' || key.name === 'y') {
+          resetInstallEndpointsOverlay()
+        }
+        return
+      }
+
       return
     }
 
@@ -945,6 +1171,21 @@ export function createKeyHandler(ctx) {
       return
     }
 
+    // 📖 Y key: open Install Endpoints flow for configured providers.
+    if (key.name === 'y') {
+      state.installEndpointsOpen = true
+      state.installEndpointsPhase = 'providers'
+      state.installEndpointsCursor = 0
+      state.installEndpointsScrollOffset = 0
+      state.installEndpointsProviderKey = null
+      state.installEndpointsToolMode = null
+      state.installEndpointsScope = null
+      state.installEndpointsSelectedModelIds = new Set()
+      state.installEndpointsErrorMsg = null
+      state.installEndpointsResult = null
+      return
+    }
+
     // 📖 Shift+P: cycle through profiles (or show profile picker)
     if (key.name === 'p' && key.shift) {
       const profiles = listProfiles(state.config)
@@ -1007,11 +1248,11 @@ export function createKeyHandler(ctx) {
       return
     }
 
-    // 📖 Sorting keys: R=rank, Y=tier, O=origin, M=model, L=latest ping, A=avg ping, S=SWE-bench, C=context, H=health, V=verdict, B=stability, U=uptime, G=usage
-    // 📖 T is reserved for tier filter cycling — tier sort moved to Y
+    // 📖 Sorting keys: R=rank, O=origin, M=model, L=latest ping, A=avg ping, S=SWE-bench, C=context, H=health, V=verdict, B=stability, U=uptime, G=usage
+    // 📖 T is reserved for tier filter cycling. Y now opens the install-endpoints flow.
     // 📖 D is now reserved for provider filter cycling
     const sortKeys = {
-      'r': 'rank', 'y': 'tier', 'o': 'origin', 'm': 'model',
+      'r': 'rank', 'o': 'origin', 'm': 'model',
       'l': 'ping', 'a': 'avg', 's': 'swe', 'c': 'ctx', 'h': 'condition', 'v': 'verdict', 'b': 'stability', 'u': 'uptime', 'g': 'usage'
     }
 

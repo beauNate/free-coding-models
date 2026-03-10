@@ -218,9 +218,11 @@ export const getStabilityScore = (r) => {
 // 📖 sortResults: Sort the results array by any column the user can click/press in the TUI.
 // 📖 Returns a NEW array — never mutates the original (important for React-style re-renders).
 //
-// 📖 Supported columns (matching the keyboard shortcuts in the TUI):
+// 📖 Supported columns in the sorter.
+// 📖 Most map directly to visible TUI sort hotkeys; `tier` remains available internally
+// 📖 even though the live TUI now reserves `Y` for the install-endpoints flow.
 //   - 'rank'      (R key) — original index from sources.js
-//   - 'tier'      (T key) — tier hierarchy (S+ first, C last)
+//   - 'tier'      (internal) — tier hierarchy (S+ first, C last)
 //   - 'origin'    (O key) — provider name (all NIM for now, future-proofed)
 //   - 'model'     (M key) — alphabetical by display label
 //   - 'ping'      (L key) — last ping latency (only successful ones count)

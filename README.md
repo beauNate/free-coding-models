@@ -84,6 +84,7 @@
 - **💻 OpenCode integration** — Auto-detects NIM setup, sets model as default, launches OpenCode
 - **🦞 OpenClaw integration** — Sets selected model as default provider in `~/.openclaw/openclaw.json`
 - **🧰 Public tool launchers** — `Enter` can auto-configure and launch `OpenCode CLI`, `OpenCode Desktop`, `OpenClaw`, `Crush`, and `Goose`
+- **🔌 Install Endpoints flow** — Press `Y` to install one configured provider directly into `OpenCode CLI`, `OpenCode Desktop`, `OpenClaw`, `Crush`, or `Goose`, either with the full provider catalog or a curated subset of models
 - **📝 Feature Request (J key)** — Send anonymous feedback directly to the project team
 - **🐛 Bug Report (I key)** — Send anonymous bug reports directly to the project team
  - **🎨 Clean output** — Zero scrollback pollution, interface stays open until Ctrl+C
@@ -446,7 +447,7 @@ The main table displays one row per model with the following columns:
 | Column | Sort key | Description |
 |--------|----------|-------------|
 | **Rank** | `R` | Position based on current sort order (medals for top 3: 🥇🥈🥉) |
-| **Tier** | `Y` | SWE-bench tier (S+, S, A+, A, A-, B+, B, C) |
+| **Tier** | — | SWE-bench tier (S+, S, A+, A, A-, B+, B, C) |
 | **SWE%** | `S` | SWE-bench Verified score — industry-standard for coding |
 | **CTX** | `C` | Context window size (e.g. `128k`) |
 | **Model** | `M` | Model display name (favorites show ⭐ prefix) |
@@ -844,7 +845,7 @@ This script:
 **Keyboard shortcuts (main TUI):**
 - **↑↓** — Navigate models
 - **Enter** — Select model and launch the current target tool from the header badge
-- **R/Y/S/C/M/O/L/A/H/V/B/U/G** — Sort by Rank/Tier/SWE/Ctx/Model/Provider/Latest/Avg/Health/Verdict/Stability/Up%/Usage
+- **R/S/C/M/O/L/A/H/V/B/U/G** — Sort by Rank/SWE/Ctx/Model/Provider/Latest/Avg/Health/Verdict/Stability/Up%/Usage
 - **F** — Toggle favorite on selected model (⭐ in Model column, pinned at top)
 - **T** — Cycle tier filter (All → S+ → S → A+ → A → A- → B+ → B → C → All)
 - **D** — Cycle provider filter (All → NIM → Groq → ...)
@@ -852,6 +853,7 @@ This script:
 - **Z** — Cycle target tool (OpenCode CLI → OpenCode Desktop → OpenClaw → Crush → Goose)
 - **X** — Toggle request logs (recent proxied request/token usage logs)
 - **P** — Open Settings (manage API keys, toggles, updates, profiles)
+- **Y** — Open Install Endpoints (`provider → tool → all models` or `selected models only`, no proxy)
 - **Shift+P** — Cycle through saved profiles (switches live TUI settings)
 - **Shift+S** — Save current TUI settings as a named profile (inline prompt)
 - **Q** — Open Smart Recommend overlay (find the best model for your task)
@@ -861,6 +863,21 @@ This script:
 - **Ctrl+C** — Exit
 
 Pressing **K** now shows a full in-app reference: main hotkeys, settings hotkeys, and CLI flags with usage examples.
+
+### 🔌 Install Endpoints (`Y`)
+
+`Y` opens a dedicated install flow for configured providers. The flow is:
+
+1. Pick one provider that already has an API key in Settings
+2. Pick the target tool: `OpenCode CLI`, `OpenCode Desktop`, `OpenClaw`, `Crush`, or `Goose`
+3. Choose either `Install all models` or `Install selected models only`
+
+Important behavior:
+
+- Installs are written directly into the target tool config as FCM-managed entries, without going through `fcm-proxy`
+- `Install all models` is the recommended path because FCM can refresh that catalog automatically on later launches when the provider model list changes
+- `Install selected models only` is useful when you want a smaller curated picker inside the target tool
+- `OpenCode CLI` and `OpenCode Desktop` share the same `opencode.json`, so the managed provider appears in both
 
  **Keyboard shortcuts (Settings screen — `P` key):**
  - **↑↓** — Navigate providers, maintenance row, and profile rows

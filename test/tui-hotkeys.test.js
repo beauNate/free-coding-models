@@ -299,12 +299,14 @@ describe('tui-hotkeys – W key ping mode cycle + auto transitions', () => {
   it('X key no longer adjusts ping cadence — it toggles logVisible', () => {
     // The binding contract: X → log toggle, W → ping mode cycle
     const sortKeys = {
-      'r': 'rank', 'y': 'tier', 'o': 'origin', 'm': 'model',
+      'r': 'rank', 'o': 'origin', 'm': 'model',
       'l': 'ping', 'a': 'avg', 's': 'swe', 'c': 'ctx',
       'h': 'condition', 'v': 'verdict', 'b': 'stability', 'u': 'uptime', 'g': 'usage',
     }
     // X is NOT a sort key
     assert.ok(!('x' in sortKeys), 'x must not be in sort keys')
+    // Y is NOT a sort key anymore (it opens Install Endpoints)
+    assert.ok(!('y' in sortKeys), 'y must not be in sort keys')
     // W is NOT a sort key (it controls interval)
     assert.ok(!('w' in sortKeys), 'w must not be in sort keys')
   })

@@ -14,6 +14,7 @@
  *   - Viewport clipping with above/below indicators
  *   - Smart badges (mode, tier filter, origin filter, profile)
  *   - Proxy status line integrated in footer
+ *   - Install-endpoints shortcut surfaced directly in the footer hints
  *
  *   → Functions:
  *   - `setActiveProxy` — Provide the active proxy instance for footer status rendering
@@ -635,8 +636,8 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     chalk.dim(`  •  `) +
     hotkey('K', ' Help')
   )
-  // 📖 Line 2: profiles, recommend, feature request, bug report, and extended hints — gives visibility to less-obvious features
-  lines.push(chalk.dim(`  `) + hotkey('⇧P', ' Cycle profile') + chalk.dim(`  •  `) + hotkey('⇧S', ' Save profile') + chalk.dim(`  •  `) + hotkey('Q', ' Smart Recommend') + chalk.dim(`  •  `) + hotkey('J', ' Request feature') + chalk.dim(`  •  `) + hotkey('I', ' Report bug'))
+  // 📖 Line 2: profiles, install flow, recommend, feature request, bug report, and extended hints.
+  lines.push(chalk.dim(`  `) + hotkey('⇧P', ' Cycle profile') + chalk.dim(`  •  `) + hotkey('⇧S', ' Save profile') + chalk.dim(`  •  `) + hotkey('Y', ' Install endpoints') + chalk.dim(`  •  `) + hotkey('Q', ' Smart Recommend') + chalk.dim(`  •  `) + hotkey('J', ' Request feature') + chalk.dim(`  •  `) + hotkey('I', ' Report bug'))
   // 📖 Proxy status line — always rendered with explicit state (starting/running/failed/stopped)
   lines.push(renderProxyStatusLine(proxyStartupStatus, activeProxyRef, proxyEnabled))
   if (versionStatus.isOutdated) {

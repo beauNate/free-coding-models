@@ -64,7 +64,10 @@
  *       "work":     { "apiKeys": {...}, "providers": {...}, "favorites": [...], "settings": {...} },
  *       "personal": { "apiKeys": {...}, "providers": {...}, "favorites": [...], "settings": {...} },
  *       "fast":     { "apiKeys": {...}, "providers": {...}, "favorites": [...], "settings": {...} }
- *     }
+ *     },
+ *     "endpointInstalls": [
+ *       { "providerKey": "nvidia", "toolMode": "opencode", "scope": "all", "modelIds": [], "lastSyncedAt": "2026-03-09T10:00:00.000Z" }
+ *     ]
  *   }
  *
  * 📖 Profiles store a snapshot of the user's configuration. Each profile contains:
@@ -97,11 +100,12 @@
  *   → setActiveProfile(config, name) — Set which profile is active (null to clear)
  *   → _emptyProfileSettings() — Default TUI settings for a profile
  *   → getProxySettings(config) — Return normalized proxy settings from config
+ *   → normalizeEndpointInstalls(endpointInstalls) — Keep tracked endpoint installs stable across app versions
  *
  * @exports loadConfig, saveConfig, getApiKey, isProviderEnabled
  * @exports addApiKey, removeApiKey, listApiKeys — multi-key management helpers
  * @exports saveAsProfile, loadProfile, listProfiles, deleteProfile
- * @exports getActiveProfileName, setActiveProfile, getProxySettings
+ * @exports getActiveProfileName, setActiveProfile, getProxySettings, normalizeEndpointInstalls
  * @exports CONFIG_PATH — path to the JSON config file
  *
  * @see bin/free-coding-models.js — main CLI that uses these functions
@@ -175,6 +179,7 @@ export function loadConfig() {
       if (typeof parsed.telemetry.enabled !== 'boolean') parsed.telemetry.enabled = null
       if (typeof parsed.telemetry.consentVersion !== 'number') parsed.telemetry.consentVersion = 0
       if (typeof parsed.telemetry.anonymousId !== 'string' || !parsed.telemetry.anonymousId.trim()) parsed.telemetry.anonymousId = null
+      parsed.endpointInstalls = normalizeEndpointInstalls(parsed.endpointInstalls)
       // 📖 Ensure profiles section exists (added in profile system)
       if (!parsed.profiles || typeof parsed.profiles !== 'object') parsed.profiles = {}
       for (const profile of Object.values(parsed.profiles)) {
@@ -440,6 +445,39 @@ export function getProxySettings(config) {
 }
 
 /**
+ * 📖 normalizeEndpointInstalls keeps the endpoint-install tracking list safe to replay.
+ *
+ * 📖 Each entry represents one managed catalog install performed through the `Y` flow:
+ *   - `providerKey`: FCM provider identifier (`nvidia`, `groq`, ...)
+ *   - `toolMode`: canonical tool id (`opencode`, `openclaw`, `crush`, `goose`)
+ *   - `scope`: `all` or `selected`
+ *   - `modelIds`: only used when `scope === 'selected'`
+ *   - `lastSyncedAt`: informational timestamp updated on successful refresh
+ *
+ * @param {unknown} endpointInstalls
+ * @returns {{ providerKey: string, toolMode: string, scope: 'all'|'selected', modelIds: string[], lastSyncedAt: string | null }[]}
+ */
+export function normalizeEndpointInstalls(endpointInstalls) {
+  if (!Array.isArray(endpointInstalls)) return []
+  return endpointInstalls
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null
+      const providerKey = typeof entry.providerKey === 'string' ? entry.providerKey.trim() : ''
+      const toolMode = typeof entry.toolMode === 'string' ? entry.toolMode.trim() : ''
+      if (!providerKey || !toolMode) return null
+      const scope = entry.scope === 'selected' ? 'selected' : 'all'
+      const modelIds = Array.isArray(entry.modelIds)
+        ? [...new Set(entry.modelIds.filter((modelId) => typeof modelId === 'string' && modelId.trim().length > 0))]
+        : []
+      const lastSyncedAt = typeof entry.lastSyncedAt === 'string' && entry.lastSyncedAt.trim().length > 0
+        ? entry.lastSyncedAt
+        : null
+      return { providerKey, toolMode, scope, modelIds, lastSyncedAt }
+    })
+    .filter(Boolean)
+}
+
+/**
  * 📖 saveAsProfile: Snapshot the current config state into a named profile.
  *
  * 📖 Takes the current apiKeys, providers, favorites, plus explicit TUI settings
@@ -563,6 +601,8 @@ function _emptyConfig() {
       consentVersion: 0,
       anonymousId: null,
     },
+    // 📖 Tracked `Y` installs — used to refresh external tool catalogs automatically.
+    endpointInstalls: [],
     // 📖 Active profile name — null means no profile is loaded (using raw config).
     activeProfile: null,
     // 📖 Named profiles: each is a snapshot of apiKeys + providers + favorites + settings.

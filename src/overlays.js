@@ -4,7 +4,7 @@
  *
  * @details
  *   This module centralizes all overlay rendering in one place:
- *   - Settings, Help, Log, Smart Recommend, Feature Request, Bug Report
+ *   - Settings, Install Endpoints, Help, Log, Smart Recommend, Feature Request, Bug Report
  *   - Recommend analysis timer orchestration and progress updates
  *
  *   The factory pattern keeps stateful UI logic isolated while still
@@ -48,6 +48,9 @@ export function createOverlayRenderers(state, deps) {
     getTopRecommendations,
     adjustScrollOffset,
     getPingModel,
+    getConfiguredInstallableProviders,
+    getInstallTargetModes,
+    getProviderCatalogModels,
   } = deps
 
   // 📖 Keep log token formatting aligned with the main table so the same totals
@@ -266,6 +269,168 @@ export function createOverlayRenderers(state, deps) {
     return cleared.join('\n')
   }
 
+  // ─── Install Endpoints overlay renderer ───────────────────────────────────
+  // 📖 renderInstallEndpoints drives the provider → tool → scope → model flow
+  // 📖 behind the `Y` hotkey. It deliberately reuses the same overlay viewport
+  // 📖 helpers as Settings so long provider/model lists stay navigable.
+  function renderInstallEndpoints() {
+    const EL = '\x1b[K'
+    const lines = []
+    const cursorLineByRow = {}
+    const providerChoices = getConfiguredInstallableProviders(state.config)
+    const toolChoices = getInstallTargetModes()
+    const scopeChoices = [
+      {
+        key: 'all',
+        label: 'Install all models',
+        hint: 'Recommended — FCM will refresh this provider catalog automatically later.',
+      },
+      {
+        key: 'selected',
+        label: 'Install selected models only',
+        hint: 'Choose a smaller curated subset for a cleaner model picker.',
+      },
+    ]
+    const selectedProviderLabel = state.installEndpointsProviderKey
+      ? (sources[state.installEndpointsProviderKey]?.name || state.installEndpointsProviderKey)
+      : '—'
+    const selectedToolLabel = state.installEndpointsToolMode
+      ? (state.installEndpointsToolMode === 'opencode-desktop'
+          ? 'OpenCode Desktop (shared opencode.json)'
+          : (state.installEndpointsToolMode === 'opencode'
+              ? 'OpenCode CLI (shared opencode.json)'
+              : state.installEndpointsToolMode === 'openclaw'
+                ? 'OpenClaw'
+                : state.installEndpointsToolMode === 'crush'
+                  ? 'Crush'
+                  : 'Goose'))
+      : '—'
+
+    lines.push('')
+    lines.push(`  ${chalk.bold('🔌 Install Endpoints')}  ${chalk.dim('— install provider catalogs into supported coding tools')}`)
+    if (state.installEndpointsErrorMsg) {
+      lines.push(`  ${chalk.yellow(state.installEndpointsErrorMsg)}`)
+    }
+    lines.push('')
+
+    if (state.installEndpointsPhase === 'providers') {
+      lines.push(`  ${chalk.bold('Step 1/4')}  ${chalk.cyan('Choose a configured provider')}`)
+      lines.push('')
+
+      if (providerChoices.length === 0) {
+        lines.push(chalk.dim('  No configured providers can be installed directly right now.'))
+        lines.push(chalk.dim('  Add an API key in Settings (`P`) first, then reopen this screen.'))
+      } else {
+        providerChoices.forEach((provider, idx) => {
+          const isCursor = idx === state.installEndpointsCursor
+          const bullet = isCursor ? chalk.bold.cyan('  ❯ ') : chalk.dim('    ')
+          const row = `${bullet}${chalk.bold(provider.label.padEnd(24))} ${chalk.dim(`${provider.modelCount} models`)}` 
+          cursorLineByRow[idx] = lines.length
+          lines.push(isCursor ? chalk.bgRgb(24, 44, 62)(row) : row)
+        })
+      }
+
+      lines.push('')
+      lines.push(chalk.dim('  ↑↓ Navigate  •  Enter Choose provider  •  Esc Close'))
+    } else if (state.installEndpointsPhase === 'tools') {
+      lines.push(`  ${chalk.bold('Step 2/4')}  ${chalk.cyan('Choose the target tool')}`)
+      lines.push(chalk.dim(`  Provider: ${selectedProviderLabel}`))
+      lines.push('')
+
+      toolChoices.forEach((toolMode, idx) => {
+        const isCursor = idx === state.installEndpointsCursor
+        const label = toolMode === 'opencode-desktop'
+          ? 'OpenCode Desktop'
+          : toolMode === 'opencode'
+            ? 'OpenCode CLI'
+            : toolMode === 'openclaw'
+              ? 'OpenClaw'
+              : toolMode === 'crush'
+                ? 'Crush'
+                : 'Goose'
+        const note = toolMode.startsWith('opencode')
+          ? chalk.dim('shared config file')
+          : chalk.dim('managed provider install')
+        const bullet = isCursor ? chalk.bold.cyan('  ❯ ') : chalk.dim('    ')
+        const row = `${bullet}${chalk.bold(label.padEnd(22))} ${note}`
+        cursorLineByRow[idx] = lines.length
+        lines.push(isCursor ? chalk.bgRgb(24, 44, 62)(row) : row)
+      })
+
+      lines.push('')
+      lines.push(chalk.dim('  ↑↓ Navigate  •  Enter Choose tool  •  Esc Back'))
+    } else if (state.installEndpointsPhase === 'scope') {
+      lines.push(`  ${chalk.bold('Step 3/4')}  ${chalk.cyan('Choose the install scope')}`)
+      lines.push(chalk.dim(`  Provider: ${selectedProviderLabel}  •  Tool: ${selectedToolLabel}`))
+      lines.push('')
+
+      scopeChoices.forEach((scope, idx) => {
+        const isCursor = idx === state.installEndpointsCursor
+        const bullet = isCursor ? chalk.bold.cyan('  ❯ ') : chalk.dim('    ')
+        const row = `${bullet}${chalk.bold(scope.label)}`
+        cursorLineByRow[idx] = lines.length
+        lines.push(isCursor ? chalk.bgRgb(24, 44, 62)(row) : row)
+        lines.push(chalk.dim(`      ${scope.hint}`))
+        lines.push('')
+      })
+
+      lines.push(chalk.dim('  Enter Continue  •  Esc Back'))
+    } else if (state.installEndpointsPhase === 'models') {
+      const models = getProviderCatalogModels(state.installEndpointsProviderKey)
+      const selectedCount = state.installEndpointsSelectedModelIds.size
+
+      lines.push(`  ${chalk.bold('Step 4/4')}  ${chalk.cyan('Choose which models to install')}`)
+      lines.push(chalk.dim(`  Provider: ${selectedProviderLabel}  •  Tool: ${selectedToolLabel}`))
+      lines.push(chalk.dim(`  Selected: ${selectedCount}/${models.length}`))
+      lines.push('')
+
+      models.forEach((model, idx) => {
+        const isCursor = idx === state.installEndpointsCursor
+        const selected = state.installEndpointsSelectedModelIds.has(model.modelId)
+        const bullet = isCursor ? chalk.bold.cyan('  ❯ ') : chalk.dim('    ')
+        const checkbox = selected ? chalk.greenBright('[✓]') : chalk.dim('[ ]')
+        const tier = chalk.cyan(model.tier.padEnd(2))
+        const row = `${bullet}${checkbox} ${chalk.bold(model.label.padEnd(26))} ${tier} ${chalk.dim(model.ctx.padEnd(6))} ${chalk.dim(model.modelId)}`
+        cursorLineByRow[idx] = lines.length
+        lines.push(isCursor ? chalk.bgRgb(24, 44, 62)(row) : row)
+      })
+
+      lines.push('')
+      lines.push(chalk.dim('  ↑↓ Navigate  •  Space Toggle model  •  A All/None  •  Enter Install  •  Esc Back'))
+    } else if (state.installEndpointsPhase === 'result') {
+      const result = state.installEndpointsResult
+      const accent = result?.type === 'success' ? chalk.greenBright : chalk.redBright
+      lines.push(`  ${chalk.bold('Result')}  ${accent(result?.title || 'Install result unavailable')}`)
+      lines.push('')
+
+      for (const detail of result?.lines || []) {
+        lines.push(`  ${detail}`)
+      }
+
+      if (result?.type === 'success') {
+        lines.push('')
+        lines.push(chalk.dim('  Future FCM launches will refresh this catalog automatically when the provider list evolves.'))
+      }
+
+      lines.push('')
+      lines.push(chalk.dim('  Enter or Esc Close'))
+    }
+
+    const targetLine = cursorLineByRow[state.installEndpointsCursor] ?? 0
+    state.installEndpointsScrollOffset = keepOverlayTargetVisible(
+      state.installEndpointsScrollOffset,
+      targetLine,
+      lines.length,
+      state.terminalRows
+    )
+    const { visible, offset } = sliceOverlayLines(lines, state.installEndpointsScrollOffset, state.terminalRows)
+    state.installEndpointsScrollOffset = offset
+
+    const tintedLines = tintOverlayLines(visible, SETTINGS_OVERLAY_BG)
+    const cleared = tintedLines.map((line) => line + EL)
+    return cleared.join('\n')
+  }
+
   // ─── Help overlay renderer ────────────────────────────────────────────────
   // 📖 renderHelp: Draw the help overlay listing all key bindings.
   // 📖 Toggled with K key. Gives users a quick reference without leaving the TUI.
@@ -280,7 +445,7 @@ export function createOverlayRenderers(state, deps) {
     lines.push(`  ${chalk.cyan('Rank')}        SWE-bench rank (1 = best coding score)  ${chalk.dim('Sort:')} ${chalk.yellow('R')}`)
     lines.push(`              ${chalk.dim('Quick glance at which model is objectively the best coder right now.')}`)
     lines.push('')
-    lines.push(`  ${chalk.cyan('Tier')}        S+ / S / A+ / A / A- / B+ / B / C based on SWE-bench score  ${chalk.dim('Sort:')} ${chalk.yellow('Y')}  ${chalk.dim('Cycle:')} ${chalk.yellow('T')}`)
+    lines.push(`  ${chalk.cyan('Tier')}        S+ / S / A+ / A / A- / B+ / B / C based on SWE-bench score  ${chalk.dim('Cycle:')} ${chalk.yellow('T')}`)
     lines.push(`              ${chalk.dim('Skip the noise — S/S+ models solve real GitHub issues, C models are for light tasks.')}`)
     lines.push('')
     lines.push(`  ${chalk.cyan('SWE%')}        SWE-bench score — coding ability benchmark (color-coded)  ${chalk.dim('Sort:')} ${chalk.yellow('S')}`)
@@ -331,6 +496,7 @@ export function createOverlayRenderers(state, deps) {
     lines.push(`  ${chalk.yellow('X')}  Toggle token log page  ${chalk.dim('(shows recent request usage from request-log.jsonl)')}`)
     lines.push(`  ${chalk.yellow('Z')}  Cycle tool mode  ${chalk.dim('(OpenCode → Desktop → OpenClaw → Crush → Goose)')}`)
     lines.push(`  ${chalk.yellow('F')}  Toggle favorite on selected row  ${chalk.dim('(⭐ pinned at top, persisted)')}`)
+    lines.push(`  ${chalk.yellow('Y')}  Install endpoints  ${chalk.dim('(provider catalog → OpenCode/OpenClaw/Crush/Goose, no proxy)')}`)
     lines.push(`  ${chalk.yellow('Q')}  Smart Recommend  ${chalk.dim('(🎯 find the best model for your task — questionnaire + live analysis)')}`)
     lines.push(`  ${chalk.rgb(57, 255, 20).bold('J')}  Request Feature  ${chalk.dim('(📝 send anonymous feedback to the project team)')}`)
     lines.push(`  ${chalk.rgb(255, 87, 51).bold('I')}  Report Bug  ${chalk.dim('(🐛 send anonymous bug report to the project team)')}`)
@@ -907,6 +1073,7 @@ export function createOverlayRenderers(state, deps) {
 
   return {
     renderSettings,
+    renderInstallEndpoints,
     renderHelp,
     renderLog,
     renderRecommend,

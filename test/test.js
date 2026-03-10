@@ -38,7 +38,7 @@ import {
 } from '../src/utils.js'
 import {
   _emptyProfileSettings, saveAsProfile, loadProfile, listProfiles,
-  deleteProfile, getActiveProfileName, setActiveProfile, getProxySettings, normalizeProxySettings
+  deleteProfile, getActiveProfileName, setActiveProfile, getProxySettings, normalizeProxySettings, normalizeEndpointInstalls, getApiKey
 } from '../src/config.js'
 import { buildProviderModelTokenKey, loadTokenUsageByProviderModel, formatTokenTotalCompact } from '../src/token-usage-reader.js'
 import { renderTable } from '../src/render-table.js'
@@ -47,6 +47,7 @@ import { buildMergedModels } from '../src/model-merger.js'
 import { setOpenCodeModelData } from '../src/opencode.js'
 import { resolveLauncherModelId } from '../src/tool-launchers.js'
 import { parseLogLine } from '../src/log-reader.js'
+import { getConfiguredInstallableProviders, installProviderEndpoints } from '../src/endpoint-installer.js'
 
 // ─── Helper: create a mock model result ──────────────────────────────────────
 // 📖 Builds a minimal result object matching the shape used by the main script
@@ -1466,6 +1467,145 @@ describe('proxy launcher model ids', () => {
     }, false)
 
     assert.equal(resolved, 'deepseek-ai/deepseek-v3.1')
+  })
+})
+
+describe('endpoint install tracking', () => {
+  it('normalizes tracked installs to canonical shape', () => {
+    const normalized = normalizeEndpointInstalls([
+      {
+        providerKey: 'nvidia',
+        toolMode: 'opencode',
+        scope: 'selected',
+        modelIds: ['deepseek-ai/deepseek-v3.2', '', 'deepseek-ai/deepseek-v3.2'],
+        lastSyncedAt: '2026-03-09T12:00:00.000Z',
+      },
+      null,
+      { providerKey: '', toolMode: 'goose' },
+    ])
+
+    assert.deepEqual(normalized, [
+      {
+        providerKey: 'nvidia',
+        toolMode: 'opencode',
+        scope: 'selected',
+        modelIds: ['deepseek-ai/deepseek-v3.2'],
+        lastSyncedAt: '2026-03-09T12:00:00.000Z',
+      },
+    ])
+  })
+
+  it('lists only configured providers that support direct endpoint installs', () => {
+    const providers = getConfiguredInstallableProviders({
+      apiKeys: {
+        nvidia: 'nvapi-test',
+        replicate: 'r8-test',
+      },
+    })
+
+    assert.ok(providers.some((provider) => provider.providerKey === 'nvidia'))
+    assert.ok(!providers.some((provider) => provider.providerKey === 'replicate'))
+  })
+})
+
+describe('endpoint installer', () => {
+  it('installs a managed OpenCode provider catalog and tracks it canonically', () => {
+    const dir = join(tmpdir(), `fcm-opencode-install-${process.pid}-${Date.now()}`)
+    mkdirSync(dir, { recursive: true })
+
+    const config = {
+      apiKeys: { nvidia: 'nvapi-test' },
+      providers: {},
+      settings: {},
+      favorites: [],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [],
+      profiles: {},
+      activeProfile: null,
+    }
+
+    const paths = {
+      opencodeConfigPath: join(dir, 'opencode', 'opencode.json'),
+      openclawConfigPath: join(dir, 'openclaw', 'openclaw.json'),
+      crushConfigPath: join(dir, 'crush', 'crush.json'),
+      gooseProvidersDir: join(dir, 'goose', 'custom_providers'),
+      gooseSecretsPath: join(dir, 'goose', 'secrets.yaml'),
+    }
+
+    try {
+      const expectedApiKey = getApiKey(config, 'nvidia')
+      const result = installProviderEndpoints(config, 'nvidia', 'opencode-desktop', {
+        scope: 'selected',
+        modelIds: ['deepseek-ai/deepseek-v3.2'],
+        paths,
+      })
+
+      const written = JSON.parse(readFileSync(paths.opencodeConfigPath, 'utf8'))
+      assert.equal(result.toolMode, 'opencode')
+      assert.equal(result.modelCount, 1)
+      assert.equal(written.provider['fcm-nvidia'].options.apiKey, expectedApiKey)
+      assert.deepEqual(written.provider['fcm-nvidia'].models, {
+        'deepseek-ai/deepseek-v3.2': { name: 'DeepSeek V3.2' },
+      })
+      assert.deepEqual(config.endpointInstalls.map((entry) => ({
+        providerKey: entry.providerKey,
+        toolMode: entry.toolMode,
+        scope: entry.scope,
+        modelIds: entry.modelIds,
+      })), [
+        {
+          providerKey: 'nvidia',
+          toolMode: 'opencode',
+          scope: 'selected',
+          modelIds: ['deepseek-ai/deepseek-v3.2'],
+        },
+      ])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('installs Goose custom provider metadata and persists the matching secret', () => {
+    const dir = join(tmpdir(), `fcm-goose-install-${process.pid}-${Date.now()}`)
+    mkdirSync(dir, { recursive: true })
+
+    const config = {
+      apiKeys: { groq: 'gsk-test' },
+      providers: {},
+      settings: {},
+      favorites: [],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [],
+      profiles: {},
+      activeProfile: null,
+    }
+
+    const paths = {
+      opencodeConfigPath: join(dir, 'opencode', 'opencode.json'),
+      openclawConfigPath: join(dir, 'openclaw', 'openclaw.json'),
+      crushConfigPath: join(dir, 'crush', 'crush.json'),
+      gooseProvidersDir: join(dir, 'goose', 'custom_providers'),
+      gooseSecretsPath: join(dir, 'goose', 'secrets.yaml'),
+    }
+
+    try {
+      const expectedApiKey = getApiKey(config, 'groq')
+      installProviderEndpoints(config, 'groq', 'goose', {
+        scope: 'selected',
+        modelIds: ['openai/gpt-oss-120b'],
+        paths,
+      })
+
+      const providerFile = join(paths.gooseProvidersDir, 'fcm-groq.json')
+      const providerConfig = JSON.parse(readFileSync(providerFile, 'utf8'))
+      const secretsYaml = readFileSync(paths.gooseSecretsPath, 'utf8')
+
+      assert.equal(providerConfig.api_key_env, 'FCM_GROQ_API_KEY')
+      assert.equal(providerConfig.models[0].name, 'openai/gpt-oss-120b')
+      assert.match(secretsYaml, new RegExp(`FCM_GROQ_API_KEY:\\s+${JSON.stringify(String(expectedApiKey))}`))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

@@ -2,6 +2,16 @@
 
 ---
 
+## 0.2.2
+
+### Added
+
+- 🔌 Added a new `Y` install flow that pushes one configured provider directly into `OpenCode CLI`, `OpenCode Desktop`, `OpenClaw`, `Crush`, or `Goose`, with either the full catalog or a curated model subset.
+
+### Changed
+
+- 🔄 Tracked endpoint installs are now refreshed automatically on future launches so managed tool catalogs stay aligned when provider model lists evolve.
+
 ## 0.2.1
 
 ### Added
