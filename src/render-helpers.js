@@ -106,13 +106,15 @@ export function padEndDisplay(str, width) {
   return str + ' '.repeat(need)
 }
 
-// 📖 tintOverlayLines: Tint overlay lines with a fixed dark panel width so the background is clearly visible.
-// 📖 Applies bgColor to each line and pads to OVERLAY_PANEL_WIDTH for consistent panel look.
-export function tintOverlayLines(lines, bgColor) {
+// 📖 tintOverlayLines: Tint overlay lines with a terminal width so the background is clearly visible.
+// 📖 Applies bgColor to each line and pads to terminalCols for full-width panel look.
+// 📖 If terminalCols is not provided, falls back to OVERLAY_PANEL_WIDTH for compatibility.
+export function tintOverlayLines(lines, bgColor, terminalCols = null) {
+  const panelWidth = terminalCols || OVERLAY_PANEL_WIDTH
   return lines.map((line) => {
     const text = String(line)
     const visibleWidth = stripAnsi(text).length
-    const padding = ' '.repeat(Math.max(0, OVERLAY_PANEL_WIDTH - visibleWidth))
+    const padding = ' '.repeat(Math.max(0, panelWidth - visibleWidth))
     return bgColor(text + padding)
   })
 }

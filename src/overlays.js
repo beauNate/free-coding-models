@@ -56,7 +56,9 @@ export function createOverlayRenderers(state, deps) {
 
   // 📖 Wrap plain diagnostic text so long Settings messages stay readable inside
   // 📖 the overlay instead of turning into one truncated red line.
-  const wrapPlainText = (text, width = 104) => {
+  // 📖 Uses 100% of terminal width minus padding for better readability.
+  const wrapPlainText = (text, width = null) => {
+    const effectiveWidth = width || (state.terminalCols - 16)
     const normalized = typeof text === 'string' ? text.trim() : ''
     if (!normalized) return []
     const words = normalized.split(/\s+/)
@@ -64,7 +66,7 @@ export function createOverlayRenderers(state, deps) {
     let current = ''
     for (const word of words) {
       const next = current ? `${current} ${word}` : word
-      if (next.length > width && current) {
+      if (next.length > effectiveWidth && current) {
         lines.push(current)
         current = word
       } else {
@@ -109,7 +111,9 @@ export function createOverlayRenderers(state, deps) {
     }
     lines.push('')
     lines.push(`  ${chalk.bold('🧩 Providers')}`)
-    lines.push(`  ${chalk.dim('  ' + '─'.repeat(112))}`)
+    // 📖 Dynamic separator line using 100% terminal width
+    const separatorWidth = Math.max(20, state.terminalCols - 10)
+    lines.push(`  ${chalk.dim('  ' + '─'.repeat(separatorWidth))}`)
     lines.push('')
 
     for (let i = 0; i < providerKeys.length; i++) {
@@ -153,7 +157,8 @@ export function createOverlayRenderers(state, deps) {
       else if (testResult === 'rate_limited') testBadge = chalk.yellow('[Rate limit ⏳]')
       else if (testResult === 'no_callable_model') testBadge = chalk.magenta('[No model ⚠]')
       else if (testResult === 'fail') testBadge = chalk.red('[Test ❌]')
-      const rateSummary = chalk.dim((meta.rateLimits || 'No limit info').slice(0, 36))
+      // 📖 No truncation of rate limits - overlay now uses 100% terminal width
+      const rateSummary = chalk.dim(meta.rateLimits || 'No limit info')
 
       const enabledBadge = enabled ? chalk.greenBright('✅') : chalk.redBright('❌')
       const providerName = chalk.bold((meta.label || src.name || pk).slice(0, 22).padEnd(22))
@@ -193,7 +198,7 @@ export function createOverlayRenderers(state, deps) {
 
     lines.push('')
     lines.push(`  ${chalk.bold('🛠 Maintenance')}`)
-    lines.push(`  ${chalk.dim('  ' + '─'.repeat(112))}`)
+    lines.push(`  ${chalk.dim('  ' + '─'.repeat(separatorWidth))}`)
     lines.push('')
 
     const updateCursor = state.settingsCursor === updateRowIdx
@@ -218,7 +223,7 @@ export function createOverlayRenderers(state, deps) {
 
     lines.push('')
     lines.push(`  ${chalk.bold('🔀 Proxy')}`)
-    lines.push(`  ${chalk.dim('  ' + '─'.repeat(112))}`)
+    lines.push(`  ${chalk.dim('  ' + '─'.repeat(separatorWidth))}`)
     lines.push('')
 
     const proxyEnabledBullet = state.settingsCursor === proxyEnabledRowIdx ? chalk.bold.cyan('  ❯ ') : chalk.dim('    ')
@@ -251,7 +256,7 @@ export function createOverlayRenderers(state, deps) {
 
     lines.push('')
     lines.push(`  ${chalk.bold('📋 Profiles')}  ${chalk.dim(savedProfiles.length > 0 ? `(${savedProfiles.length} saved)` : '(none — press Shift+S in main view to save)')}`)
-    lines.push(`  ${chalk.dim('  ' + '─'.repeat(112))}`)
+    lines.push(`  ${chalk.dim('  ' + '─'.repeat(separatorWidth))}`)
     lines.push('')
 
     if (savedProfiles.length === 0) {
@@ -298,7 +303,7 @@ export function createOverlayRenderers(state, deps) {
     const { visible, offset } = sliceOverlayLines(lines, state.settingsScrollOffset, state.terminalRows)
     state.settingsScrollOffset = offset
 
-    const tintedLines = tintOverlayLines(visible, SETTINGS_OVERLAY_BG)
+    const tintedLines = tintOverlayLines(visible, SETTINGS_OVERLAY_BG, state.terminalCols)
     const cleared = tintedLines.map(l => l + EL)
     return cleared.join('\n')
   }
@@ -460,7 +465,7 @@ export function createOverlayRenderers(state, deps) {
     const { visible, offset } = sliceOverlayLines(lines, state.installEndpointsScrollOffset, state.terminalRows)
     state.installEndpointsScrollOffset = offset
 
-    const tintedLines = tintOverlayLines(visible, SETTINGS_OVERLAY_BG)
+    const tintedLines = tintOverlayLines(visible, SETTINGS_OVERLAY_BG, state.terminalCols)
     const cleared = tintedLines.map((line) => line + EL)
     return cleared.join('\n')
   }
@@ -580,7 +585,7 @@ export function createOverlayRenderers(state, deps) {
     // 📖 Help overlay can be longer than viewport, so keep a dedicated scroll offset.
     const { visible, offset } = sliceOverlayLines(lines, state.helpScrollOffset, state.terminalRows)
     state.helpScrollOffset = offset
-    const tintedLines = tintOverlayLines(visible, HELP_OVERLAY_BG)
+    const tintedLines = tintOverlayLines(visible, HELP_OVERLAY_BG, state.terminalCols)
     const cleared = tintedLines.map(l => l + EL)
     return cleared.join('\n')
   }
@@ -685,7 +690,7 @@ export function createOverlayRenderers(state, deps) {
 
     const { visible, offset } = sliceOverlayLines(lines, state.logScrollOffset, state.terminalRows)
     state.logScrollOffset = offset
-    const tintedLines = tintOverlayLines(visible, LOG_OVERLAY_BG)
+    const tintedLines = tintOverlayLines(visible, LOG_OVERLAY_BG, state.terminalCols)
     const cleared = tintedLines.map(l => l + EL)
     return cleared.join('\n')
   }
@@ -825,7 +830,7 @@ export function createOverlayRenderers(state, deps) {
     lines.push('')
     const { visible, offset } = sliceOverlayLines(lines, state.recommendScrollOffset, state.terminalRows)
     state.recommendScrollOffset = offset
-    const tintedLines = tintOverlayLines(visible, RECOMMEND_OVERLAY_BG)
+    const tintedLines = tintOverlayLines(visible, RECOMMEND_OVERLAY_BG, state.terminalCols)
     const cleared2 = tintedLines.map(l => l + EL)
     return cleared2.join('\n')
   }
@@ -989,8 +994,8 @@ export function createOverlayRenderers(state, deps) {
     lines.push(chalk.dim('  Enter Send  •  Esc Cancel  •  Backspace Delete'))
 
     // 📖 Apply overlay tint and return
-    const FEATURE_REQUEST_OVERLAY_BG = chalk.bgRgb(26, 26, 46) // Dark blue-ish background (RGB: 26, 26, 46)
-    const tintedLines = tintOverlayLines(lines, FEATURE_REQUEST_OVERLAY_BG)
+    const FEATURE_REQUEST_OVERLAY_BG = chalk.bgRgb(0, 0, 0) // Dark blue-ish background (RGB: 26, 26, 46)
+    const tintedLines = tintOverlayLines(lines, FEATURE_REQUEST_OVERLAY_BG, state.terminalCols)
     const cleared = tintedLines.map(l => l + EL)
     return cleared.join('\n')
   }
@@ -1093,8 +1098,8 @@ export function createOverlayRenderers(state, deps) {
     lines.push(chalk.dim('  Enter Send  •  Esc Cancel  •  Backspace Delete'))
 
     // 📖 Apply overlay tint and return
-    const BUG_REPORT_OVERLAY_BG = chalk.bgRgb(46, 20, 20) // Dark red-ish background (RGB: 46, 20, 20)
-    const tintedLines = tintOverlayLines(lines, BUG_REPORT_OVERLAY_BG)
+    const BUG_REPORT_OVERLAY_BG = chalk.bgRgb(0, 0, 0) // Dark red-ish background (RGB: 46, 20, 20)
+    const tintedLines = tintOverlayLines(lines, BUG_REPORT_OVERLAY_BG, state.terminalCols)
     const cleared = tintedLines.map(l => l + EL)
     return cleared.join('\n')
   }

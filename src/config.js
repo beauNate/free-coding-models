@@ -263,10 +263,22 @@ export function saveConfig(config) {
         throw new Error('Written config is not a valid object')
       }
 
-      // 📖 Verify critical data wasn't lost
+      // 📖 Verify critical data wasn't lost - check ALL keys are preserved
       if (config.apiKeys && Object.keys(config.apiKeys).length > 0) {
-        if (!parsed.apiKeys || Object.keys(parsed.apiKeys).length === 0) {
-          throw new Error('API keys were lost during write')
+        if (!parsed.apiKeys) {
+          throw new Error('apiKeys object missing after write')
+        }
+        const originalKeys = Object.keys(config.apiKeys).sort()
+        const writtenKeys = Object.keys(parsed.apiKeys).sort()
+        if (originalKeys.length > writtenKeys.length) {
+          const lostKeys = originalKeys.filter(k => !writtenKeys.includes(k))
+          throw new Error(`API keys lost during write: ${lostKeys.join(', ')}`)
+        }
+        // 📖 Also verify each key's value is not empty
+        for (const key of originalKeys) {
+          if (!parsed.apiKeys[key] || parsed.apiKeys[key].length === 0) {
+            throw new Error(`API key for ${key} is empty after write`)
+          }
         }
       }
 
@@ -742,7 +754,13 @@ export function loadProfile(config, name) {
   const nextSettings = profile.settings ? { ..._emptyProfileSettings(), ...profile.settings, proxy: normalizeProxySettings(profile.settings.proxy) } : _emptyProfileSettings()
 
   // 📖 Deep-copy the profile data into the live config (don't share references)
-  config.apiKeys = JSON.parse(JSON.stringify(profile.apiKeys || {}))
+  // 📖 IMPORTANT: MERGE apiKeys instead of replacing to preserve keys not in profile
+  // 📖 Profile keys take priority over existing keys (allows profile-specific overrides)
+  const profileApiKeys = profile.apiKeys || {}
+  const mergedApiKeys = { ...config.apiKeys || {}, ...profileApiKeys }
+  config.apiKeys = JSON.parse(JSON.stringify(mergedApiKeys))
+
+  // 📖 For providers, favorites: replace with profile values (these are profile-specific settings)
   config.providers = JSON.parse(JSON.stringify(profile.providers || {}))
   config.favorites = [...(profile.favorites || [])]
   config.settings = nextSettings

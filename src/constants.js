@@ -74,10 +74,10 @@ export const TIER_CYCLE = [null, 'S+', 'S', 'A+', 'A', 'A-', 'B+', 'B', 'C']
 
 // 📖 Overlay background chalk functions — each overlay panel has a distinct tint
 // 📖 so users can tell Settings, Help, Recommend, and Log panels apart at a glance.
-export const SETTINGS_OVERLAY_BG  = chalk.bgRgb(14, 20, 30)
-export const HELP_OVERLAY_BG      = chalk.bgRgb(24, 16, 32)
-export const RECOMMEND_OVERLAY_BG = chalk.bgRgb(10, 25, 15)  // 📖 Green tint for Smart Recommend
-export const LOG_OVERLAY_BG       = chalk.bgRgb(10, 20, 26)  // 📖 Dark blue-green tint for Log page
+export const SETTINGS_OVERLAY_BG  = chalk.bgRgb(0, 0, 0)
+export const HELP_OVERLAY_BG      = chalk.bgRgb(0, 0, 0)
+export const RECOMMEND_OVERLAY_BG = chalk.bgRgb(0, 0, 0)  // 📖 Green tint for Smart Recommend
+export const LOG_OVERLAY_BG       = chalk.bgRgb(0, 0, 0)  // 📖 Dark blue-green tint for Log page
 
 // 📖 OVERLAY_PANEL_WIDTH: fixed character width of all overlay panels so background
 // 📖 tint fills the panel consistently regardless of content length.

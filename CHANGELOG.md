@@ -8,6 +8,25 @@
 
 - 🔌 Added `terminalcp` MCP server configuration for Claude Code to spawn and interact with the TUI headlessly. Agents can now visually test the terminal interface by capturing output and sending keystrokes programmatically. See AGENTS.md → "Testing the TUI with terminalcp" for usage.
 
+### Fixed
+
+- 🖥️ **Overlays now use 100% terminal width** - All overlays (Settings P, Help K, Log X, Recommend Q, Feature J, Bug I) now dynamically adapt to full terminal width instead of fixed 116-column panels:
+  - Rate limits text is no longer truncated (full descriptions visible)
+  - Diagnostic messages wrap using available terminal width
+  - Separator lines extend to full terminal width
+  - Better readability on wider terminals
+
+- 🔒 **Fixed profile loading to preserve API keys** - Loading a profile now MERGES apiKeys instead of replacing them:
+  - Keys in the profile override existing keys (allows profile-specific overrides)
+  - Keys NOT in the profile are preserved (prevents key loss when switching profiles)
+  - Fixes bug where switching profiles would cause API keys to disappear
+  - Added test to verify merge behavior
+
+- 📝 **Updated OpenRouter rate limits information**:
+  - README now includes detailed explanation of free tier quotas (50/day <$10 credits, 1000/day ≥$10)
+  - Settings overlay displays accurate rate limit text
+  - Added note about failed requests counting toward daily quota
+
 ---
 
 ## 0.2.5

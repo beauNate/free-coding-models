@@ -1383,6 +1383,33 @@ describe('config profile functions', () => {
     assert.equal(config.apiKeys.nvidia, 'test-key', 'should restore original key from profile')
   })
 
+  it('loadProfile MERGES apiKeys instead of replacing (preserves keys not in profile)', () => {
+    // 📖 Bug fix: loading a profile with fewer keys was REPLACING all keys
+    // 📖 Now it should MERGE so keys outside the profile are preserved
+    const config = mockConfig()
+    // Add extra keys that won't be in the profile
+    config.apiKeys.groq = 'gsk-test-groq'
+    config.apiKeys.openrouter = 'sk-or-test-openrouter'
+
+    // Save profile with ONLY nvidia key
+    saveAsProfile(config, 'minimal')
+    const profileData = config.profiles.minimal
+    profileData.apiKeys = { nvidia: 'test-key' } // Explicitly remove other keys from profile
+
+    // Add a new key AFTER saving profile
+    config.apiKeys.together = 'together-test-new'
+
+    // Load the profile - should MERGE, not replace
+    loadProfile(config, 'minimal')
+
+    // Profile key should override
+    assert.equal(config.apiKeys.nvidia, 'test-key', 'profile key should apply')
+    // Non-profile keys should be PRESERVED
+    assert.equal(config.apiKeys.groq, 'gsk-test-groq', 'groq key should be preserved')
+    assert.equal(config.apiKeys.openrouter, 'sk-or-test-openrouter', 'openrouter key should be preserved')
+    assert.equal(config.apiKeys.together, 'together-test-new', 'new key added after profile save should be preserved')
+  })
+
   it('deleteProfile removes the profile', () => {
     const config = mockConfig()
     saveAsProfile(config, 'temp')
