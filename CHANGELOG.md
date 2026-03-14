@@ -2,6 +2,16 @@
 
 ---
 
+## 0.2.9
+
+### Fixed
+- **Discord link**: Updated expired invite URL to `https://discord.gg/f2AjwV2AN` in README and TUI footer
+
+### Added
+- **Discord link health-check workflow**: New GitHub Actions workflow (`check-discord-link.yml`) runs every 12 hours, validates the Discord invite via the Discord API, and auto-opens an issue labeled `discord-link` if the link becomes invalid
+
+---
+
 ## 0.2.8
 
 ### Updated

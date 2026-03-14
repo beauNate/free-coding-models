@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  💬 <a href="https://discord.gg/5MbTnDC3Md">Let's talk about the project on Discord</a>
+  💬 <a href="https://discord.gg/f2AjwV2AN">Let's talk about the project on Discord</a>
 </p>
 
 By Vanessa Depraute
@@ -1023,7 +1023,7 @@ We welcome contributions! Feel free to open issues, submit pull requests, or get
 
 For questions or issues, open a [GitHub issue](https://github.com/vava-nessa/free-coding-models/issues).
 
- 💬 Let's talk about the project on Discord: https://discord.gg/5MbTnDC3Md
+ 💬 Let's talk about the project on Discord: https://discord.gg/f2AjwV2AN
 
 ---
 
